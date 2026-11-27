@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stok Gudang — catat stok barang simpel</title>
+<meta name="description" content="Aplikasi web sederhana untuk mencatat stok barang: barang masuk/keluar, lokasi rak, alert stok menipis, export CSV. Jalan offline, data tersimpan di browser.">
+<style>
+  :root{
+    --bg:#f4f2ee; --panel:#fff; --ink:#1d1d1b; --muted:#6b6862; --line:#e2ded6;
+    --accent:#e8590c; --accent-ink:#fff; --ok:#2b8a3e; --warn:#d9480f; --bad:#c92a2a;
+    --radius:10px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--bg:#161614;--panel:#1f1f1c;--ink:#efece6;--muted:#9a968e;--line:#33322e;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+  header{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{margin:0;font-size:20px;letter-spacing:-.01em}
+  header .tag{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  header .spacer{flex:1}
+  main{max-width:1180px;margin:0 auto;padding:20px 24px 60px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:20px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+  .stat b{display:block;font-size:26px;font-family:var(--mono);font-weight:600}
+  .stat span{color:var(--muted);font-size:13px}
+  .stat.alert b{color:var(--warn)}
+  .grid{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start}
+  @media (max-width:880px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .card h2{margin:0 0 12px;font-size:15px}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+  input,select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit}
+  input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 12px}
+  button:hover{border-color:var(--muted)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+  button.small{padding:4px 9px;font-size:13px}
+  button.in{color:var(--ok)} button.out{color:var(--warn)} button.del{color:var(--bad)}
+  .actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .toolbar input{flex:1;min-width:180px}
+  .toolbar select{width:auto}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:12px;color:var(--muted);font-weight:500;cursor:pointer;user-select:none;white-space:nowrap}
+  td.num{font-family:var(--mono);text-align:right}
+  th.num{text-align:right}
+  .sku{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;font-weight:600}
+  .pill.ok{background:color-mix(in srgb,var(--ok) 14%,transparent);color:var(--ok)}
+  .pill.low{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+  .pill.zero{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+  .table-wrap{overflow-x:auto}
+  .empty{text-align:center;color:var(--muted);padding:30px 10px}
+  .log{max-height:320px;overflow:auto;font-size:13px}
+  .log div{padding:6px 0;border-bottom:1px dashed var(--line);display:flex;gap:8px}
+  .log time{font-family:var(--mono);color:var(--muted);white-space:nowrap}
+  .log .q-in{color:var(--ok);font-family:var(--mono)} .log .q-out{color:var(--warn);font-family:var(--mono)}
+  dialog{border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);color:var(--ink);padding:18px;width:min(360px,92vw)}
+  dialog::backdrop{background:rgba(0,0,0,.4)}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+  footer{color:var(--muted);font-size:12px;text-align:center;padding:20px}
+  footer a{color:inherit}
+</style>
+</head>
+<body>
+<header>
+  <h1>📦 Stok Gudang</h1>
+  <span class="tag">data tersimpan di browser ini · offline</span>
+  <span class="spacer"></span>
+  <button id="btnExport">Export CSV</button>
+  <button id="btnBackup">Backup JSON</button>
+  <button id="btnRestore">Restore</button>
+  <input type="file" id="fileRestore" accept=".json,application/json" hidden>
+</header>
+
+<main>
+  <section class="stats">
+    <div class="stat"><b id="sItems">0</b><span>Jenis barang</span></div>
+    <div class="stat"><b id="sQty">0</b><span>Total unit</span></div>
+    <div class="stat alert"><b id="sLow">0</b><span>Stok menipis / habis</span></div>
+    <div class="stat"><b id="sValue">Rp0</b><span>Nilai stok</span></div>
+  </section>
+
+  <div class="grid">
+    <div>
+      <form class="card" id="formItem" autocomplete="off">
+        <h2 id="formTitle">Tambah barang</h2>
+        <input type="hidden" id="fId">
+        <label for="fSku">SKU / kode</label>
+        <input id="fSku" placeholder="mis. KAOS-BLK-L" required>
+        <label for="fName">Nama barang</label>
+        <input id="fName" placeholder="mis. Kaos hitam size L" required>
+        <div class="row">
+          <div><label for="fCat">Kategori</label><input id="fCat" list="cats" placeholder="Kaos"></div>
+          <div><label for="fLoc">Lokasi rak</label><input id="fLoc" placeholder="A-01-2"></div>
+        </div>
+        <datalist id="cats"></datalist>
+        <div class="row">
+          <div><label for="fQty">Stok awal</label><input id="fQty" type="number" min="0" value="0"></div>
+          <div><label for="fMin">Stok minimum</label><input id="fMin" type="number" min="0" value="5"></div>
+        </div>
+        <label for="fPrice">Harga per unit (Rp)</label>
+        <input id="fPrice" type="number" min="0" value="0">
+        <div class="actions">
+          <button class="primary" type="submit" id="btnSave">Simpan</button>
+          <button type="button" id="btnCancel" hidden>Batal edit</button>
+        </div>
+      </form>
+
+      <div class="card" style="margin-top:20px">
+        <h2>Riwayat transaksi</h2>
+        <div class="log" id="log"><div class="empty">Belum ada transaksi.</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input id="q" type="search" placeholder="Cari SKU, nama, lokasi…">
+        <select id="fltCat"><option value="">Semua kategori</option></select>
+        <select id="fltStatus">
+          <option value="">Semua status</option>
+          <option value="low">Menipis</option>
+          <option value="zero">Habis</option>
+          <option value="ok">Aman</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th data-sort="sku">SKU</th>
+            <th data-sort="name">Barang</th>
+            <th data-sort="loc">Rak</th>
+            <th data-sort="qty" class="num">Stok</th>
+            <th>Status</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</main>
+
+<dialog id="dlgMove">
+  <form method="dialog" id="formMove">
+    <h2 id="moveTitle" style="margin:0 0 4px;font-size:16px"></h2>
+    <div class="sku" id="moveSub"></div>
+    <label for="mQty">Jumlah</label>
+    <input id="mQty" type="number" min="1" value="1" required>
+    <label for="mNote">Catatan (opsional)</label>
+    <input id="mNote" placeholder="mis. order Shopee #123 / restock supplier">
+    <div class="actions">
+      <button class="primary" value="ok">Simpan</button>
+      <button value="cancel" formnovalidate>Batal</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast"></div>
+<footer>Stok Gudang · open source · <a href="https://github.com/labib404/stok-gudang">GitHub</a></footer>
+
+<script>
+(() => {
+  const KEY = 'stok-gudang:v1';
+  const $ = id => document.getElementById(id);
+  let state = load();
+  let sort = { key: 'name', dir: 1 };
+  let moving = null; // {id, type}
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (raw) { const s = JSON.parse(raw); if (Array.isArray(s.items)) return { items: s.items, log: s.log || [] }; }
+    } catch (e) {}
+    return { items: [], log: [] };
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); }
+    catch (e) { toast('Gagal menyimpan ke browser — pakai Backup JSON.'); }
+  }
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const rupiah = n => 'Rp' + Math.round(n).toLocaleString('id-ID');
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const status = it => it.qty <= 0 ? 'zero' : it.qty <= it.min ? 'low' : 'ok';
+  const statusLabel = { ok: 'Aman', low: 'Menipis', zero: 'Habis' };
+
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('show');
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  function addLog(item, type, qty, note) {
+    state.log.unshift({ t: Date.now(), sku: item.sku, name: item.name, type, qty, note: note || '' });
+    state.log = state.log.slice(0, 500);
+  }
+
+  // ---------- render ----------
+  function render() {
+    const items = state.items;
+    $('sItems').textContent = items.length;
+    $('sQty').textContent = items.reduce((a, i) => a + i.qty, 0).toLocaleString('id-ID');
+    $('sLow').textContent = items.filter(i => status(i) !== 'ok').length;
+    $('sValue').textContent = rupiah(items.reduce((a, i) => a + i.qty * (i.price || 0), 0));
+
+    const cats = [...new Set(items.map(i => i.cat).filter(Boolean))].sort();
+    $('cats').innerHTML = cats.map(c => `<option value="${esc(c)}">`).join('');
+    const cur = $('fltCat').value;
+    $('fltCat').innerHTML = '<option value="">Semua kategori</option>' + cats.map(c => `<option${c === cur ? ' selected' : ''}>${esc(c)}</option>`).join('');
+
+    const q = $('q').value.trim().toLowerCase();
+    const fc = $('fltCat').value, fs = $('fltStatus').value;
+    const rows = items
+      .filter(i => !q || [i.sku, i.name, i.loc, i.cat].join(' ').toLowerCase().includes(q))
+      .filter(i => !fc || i.cat === fc)
+      .filter(i => !fs || status(i) === fs)
+      .sort((a, b) => {
+        const x = a[sort.key] ?? '', y = b[sort.key] ?? '';
+        return (typeof x === 'number' ? x - y : String(x).localeCompare(String(y), 'id')) * sort.dir;
+      });
+
+    $('tbody').innerHTML = rows.length ? rows.map(i => {
+      const s = status(i);
+      return `<tr>
+        <td class="sku">${esc(i.sku)}</td>
+        <td>${esc(i.name)}${i.cat ? `<div class="sku">${esc(i.cat)}</div>` : ''}</td>
+        <td class="sku">${esc(i.loc || '—')}</td>
+        <td class="num">${i.qty}<div class="sku">min ${i.min}</div></td>
+        <td><span class="pill ${s}">${statusLabel[s]}</span></td>
+        <td style="white-space:nowrap">
+          <button class="small in" data-act="in" data-id="${i.id}" title="Barang masuk">+ Masuk</button>
+          <button class="small out" data-act="out" data-id="${i.id}" title="Barang keluar">− Keluar</button>
+          <button class="small" data-act="edit" data-id="${i.id}">Edit</button>
+          <button class="small del" data-act="del" data-id="${i.id}" title="Hapus">✕</button>
+        </td></tr>`;
+    }).join('') : `<tr><td colspan="6" class="empty">${items.length ? 'Tidak ada barang yang cocok.' : 'Belum ada barang. Tambah dari form di kiri.'}</td></tr>`;
+
+    $('log').innerHTML = state.log.length ? state.log.slice(0, 100).map(l => {
+      const d = new Date(l.t);
+      const time = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      const sign = l.type === 'out' ? `<span class="q-out">−${l.qty}</span>` : `<span class="q-in">+${l.qty}</span>`;
+      return `<div><time>${time}</time>${sign}<span><b>${esc(l.sku)}</b> ${esc(l.note)}</span></div>`;
+    }).join('') : '<div class="empty">Belum ada transaksi.</div>';
+  }
+
+  // ---------- form tambah/edit ----------
+  function resetForm() {
+    $('formItem').reset(); $('fId').value = '';
+    $('formTitle').textContent = 'Tambah barang';
+    $('fQty').disabled = false; $('btnCancel').hidden = true;
+  }
+  $('formItem').addEventListener('submit', e => {
+    e.preventDefault();
+    const id = $('fId').value;
+    const data = {
+      sku: $('fSku').value.trim().toUpperCase(),
+      name: $('fName').value.trim(),
+      cat: $('fCat').value.trim(),
+      loc: $('fLoc').value.trim().toUpperCase(),
+      min: Math.max(0, parseInt($('fMin').value) || 0),
+      price: Math.max(0, parseFloat($('fPrice').value) || 0),
+    };
+    if (!data.sku || !data.name) return;
+    const dup = state.items.find(i => i.sku === data.sku && i.id !== id);
+    if (dup) { toast(`SKU ${data.sku} sudah dipakai "${dup.name}".`); return; }
+    if (id) {
+      Object.assign(state.items.find(i => i.id === id), data);
+      toast('Barang diperbarui.');
+    } else {
+      const item = { id: uid(), ...data, qty: Math.max(0, parseInt($('fQty').value) || 0) };
+      state.items.push(item);
+      if (item.qty > 0) addLog(item, 'in', item.qty, 'stok awal');
+      toast('Barang ditambahkan.');
+    }
+    save(); resetForm(); render();
+  });
+  $('btnCancel').addEventListener('click', resetForm);
+
+  // ---------- aksi di tabel ----------
+  $('tbody').addEventListener('click', e => {
+    const b = e.target.closest('button[data-act]'); if (!b) return;
+    const it = state.items.find(i => i.id === b.dataset.id); if (!it) return;
+    const act = b.dataset.act;
+    if (act === 'edit') {
+      $('fId').value = it.id; $('fSku').value = it.sku; $('fName').value = it.name;
+      $('fCat').value = it.cat || ''; $('fLoc').value = it.loc || '';
+      $('fQty').value = it.qty; $('fQty').disabled = true;
+      $('fMin').value = it.min; $('fPrice').value = it.price || 0;
+      $('formTitle').textContent = 'Edit barang'; $('btnCancel').hidden = false;
+      $('fName').focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (act === 'del') {
+      if (confirm(`Hapus "${it.name}" (${it.sku})? Riwayat transaksinya tetap disimpan.`)) {
+        state.items = state.items.filter(i => i.id !== it.id); save(); render(); toast('Barang dihapus.');
+      }
+    } else {
+      moving = { id: it.id, type: act };
+      $('moveTitle').textContent = act === 'in' ? 'Barang masuk' : 'Barang keluar';
+      $('moveSub').textContent = `${it.sku} · ${it.name} · stok sekarang ${it.qty}`;
+      $('mQty').value = 1; $('mQty').max = act === 'out' ? it.qty : '';
+      $('mNote').value = '';
+      $('dlgMove').showModal(); $('mQty').select();
+    }
+  });
+  $('dlgMove').addEventListener('close', () => {
+    if ($('dlgMove').returnValue !== 'ok' || !moving) return;
+    const it = state.items.find(i => i.id === moving.id);
+    const n = parseInt($('mQty').value) || 0;
+    if (!it || n <= 0) return;
+    if (moving.type === 'out' && n > it.qty) { toast(`Stok cuma ${it.qty}, tidak bisa keluar ${n}.`); return; }
+    it.qty += moving.type === 'in' ? n : -n;
+    addLog(it, moving.type, n, $('mNote').value.trim());
+    save(); render();
+    if (status(it) !== 'ok') toast(`⚠ ${it.sku} stok ${status(it) === 'zero' ? 'habis' : 'menipis'} (${it.qty}).`);
+    moving = null;
+  });
+
+  // ---------- filter & sort ----------
+  ['q', 'fltCat', 'fltStatus'].forEach(id => $(id).addEventListener('input', render));
+  document.querySelectorAll('th[data-sort]').forEach(th => th.addEventListener('click', () => {
+    const k = th.dataset.sort;
+    sort = { key: k, dir: sort.key === k ? -sort.dir : 1 }; render();
+  }));
+
+  // ---------- export / backup / restore ----------
+  function download(name, text, type) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type }));
+    a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  const stamp = () => new Date().toISOString().slice(0, 10);
+  $('btnExport').addEventListener('click', () => {
+    const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const head = ['SKU', 'Nama', 'Kategori', 'Lokasi', 'Stok', 'Minimum', 'Harga', 'Nilai', 'Status'];
+    const lines = state.items.map(i => [i.sku, i.name, i.cat, i.loc, i.qty, i.min, i.price || 0, i.qty * (i.price || 0), statusLabel[status(i)]].map(cell).join(','));
+    download(`stok-gudang-${stamp()}.csv`, '﻿' + [head.map(cell).join(','), ...lines].join('\n'), 'text/csv');
+  });
+  $('btnBackup').addEventListener('click', () => download(`stok-gudang-backup-${stamp()}.json`, JSON.stringify(state, null, 2), 'application/json'));
+  $('btnRestore').addEventListener('click', () => $('fileRestore').click());
+  $('fileRestore').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const s = JSON.parse(await f.text());
+      if (!Array.isArray(s.items)) throw 0;
+      if (!confirm(`Ganti data sekarang dengan backup (${s.items.length} barang)?`)) return;
+      state = { items: s.items, log: s.log || [] }; save(); render(); toast('Backup dipulihkan.');
+    } catch { toast('File backup tidak valid.'); }
+    e.target.value = '';
+  });
+
+  // contoh data saat pertama kali dibuka
+  if (!state.items.length && !state.log.length) {
+    [['KAOS-BLK-M','Kaos hitam size M','Kaos','A-01-1',24,10,85000],
+     ['KAOS-BLK-L','Kaos hitam size L','Kaos','A-01-2',6,10,85000],
+     ['KAOS-WHT-L','Kaos putih size L','Kaos','A-02-1',0,8,85000],
+     ['SPT-AF1-42','Sepatu custom AF1 uk. 42','Sepatu','B-01-1',3,2,650000],
+     ['PLS-MLR-01','Plastik mailer 25x35','Packaging','C-01-1',150,50,700]]
+      .forEach(([sku,name,cat,loc,qty,min,price]) => state.items.push({ id: uid(), sku, name, cat, loc, qty, min, price }));
+    save();
+  }
+  render();
+})();
+</script>
+</body>
+</html>

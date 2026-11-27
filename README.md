@@ -4,8 +4,6 @@ Aplikasi web simpel buat nyatet stok barang — cocok untuk toko online kecil, b
 
 **Live demo:** https://labib404.github.io/stok-gudang/
 
-![Screenshot Stok Gudang](screenshot.jpg)
-
 ## Fitur
 
 - Tambah / edit / hapus barang (SKU, nama, kategori, lokasi rak, stok minimum, harga)
