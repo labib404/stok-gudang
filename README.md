@@ -1,32 +1,22 @@
-# 📦 Stok Gudang
+# 📦 Stok Gudang Pro — Demo
 
-Aplikasi web simpel buat nyatet stok barang — cocok untuk toko online kecil, brand clothing, atau gudang kecil.
+Aplikasi pencatat stok barang & gudang untuk **seller online, toko, dan distributor**. Jalan offline, sekali bayar, tanpa langganan.
 
-**Live demo:** https://labib404.github.io/stok-gudang/
+**▶ Coba demo:** https://labib404.github.io/stok-gudang/
+
+![Dashboard Stok Gudang Pro](screenshot.png)
 
 ## Fitur
+- Dashboard: nilai stok, penjualan & laba 30 hari, barang perlu restock, barang terlaris
+- Barang masuk / keluar / transfer antar gudang / penyesuaian + cetak surat jalan
+- Multi-gudang, supplier, kartu stok per barang, harga modal rata-rata otomatis
+- Stock opname dengan scan barcode, selisih otomatis disesuaikan
+- Cetak label barcode & scan pakai kamera HP / scanner USB
+- Laporan nilai stok, pergerakan stok, penjualan & laba, barang lambat laku → export Excel
+- Import barang dari Excel, backup & restore, bisa di-install di HP, mode gelap
 
-- Tambah / edit / hapus barang (SKU, nama, kategori, lokasi rak, stok minimum, harga)
-- Catat **barang masuk** dan **barang keluar** + catatan (mis. nomor order)
-- Status otomatis: **Aman**, **Menipis** (≤ stok minimum), **Habis**
-- Ringkasan: jumlah jenis barang, total unit, barang menipis, nilai stok (Rp)
-- Cari, filter per kategori/status, urutkan kolom
-- Riwayat transaksi (500 terakhir)
-- **Export CSV** (bisa dibuka di Excel / Google Sheets)
-- **Backup & restore JSON**
-- Jalan offline, tanpa server, tanpa login — data tersimpan di browser (localStorage)
-- Mode gelap otomatis, responsif di HP
+## Versi demo
+Versi demo dibatasi maksimal 25 barang, dan fitur export, cetak, import & backup dikunci.
+Versi lengkap (file aplikasi + panduan PDF + template Excel) tersedia dengan sekali bayar.
 
-## Cara pakai
-
-1. Buka link demo di atas, atau download `index.html` lalu buka di browser.
-2. Hapus data contoh, tambahkan barang sendiri.
-3. Rutin klik **Backup JSON** — data cuma ada di browser itu, jadi kalau cache dihapus datanya ikut hilang.
-
-## Teknologi
-
-Satu file HTML + CSS + JavaScript murni. Tanpa framework, tanpa build step.
-
-## Lisensi
-
-MIT — bebas dipakai dan dimodifikasi.
+© 2026 Muhammad Labib Al'Bukhori. Hak cipta dilindungi. Dilarang menyalin, mendistribusikan, atau menjual ulang tanpa izin.
